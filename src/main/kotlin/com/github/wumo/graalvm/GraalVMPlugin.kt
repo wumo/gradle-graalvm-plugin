@@ -74,7 +74,7 @@ class GraalVMPlugin: Plugin<Project> {
             append("-H:Path=").append("\"${dstDir.absolutePath}\" ")
             val exeName =
               if(config.executableName.isNotBlank()) config.executableName.trim()
-              else "${project.name}-${osDetector.classifier}"
+              else "${project.name}-${project.version}-${osDetector.classifier}"
             append("-H:Name=$exeName ")
             config.arguments.forEach {
               append(it.trim()).append(" ")
