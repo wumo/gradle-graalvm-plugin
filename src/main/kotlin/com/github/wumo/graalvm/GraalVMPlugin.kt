@@ -102,17 +102,14 @@ class GraalVMPlugin : Plugin<Project> {
   }
   
   private fun checkGraalVM() {
-    println("check graalvm")
     val graalvmHome = File(config.graalvmHome)
     check(graalvmHome.exists()) { "graalvm is missing" }
     val guPath = Paths.get(config.graalvmHome, "bin", "gu").toString()
     exec("\"$guPath\" install native-image")
     check(config.mainClassName.isNotBlank()) { "mainClassName is blank" }
-    println("finish check graalvm")
   }
   
   private fun checkMSVC() {
-    println("check msvc")
     if (isWindows) {
       val cacheDir = Paths.get(System.getProperty("user.home"), ".graalvm", "cache")
           .toAbsolutePath().toFile()
