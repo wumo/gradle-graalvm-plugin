@@ -25,20 +25,20 @@ open class GraalVMPluginExtension {
   var arguments: List<String> = mutableListOf()
 }
 
-fun Project.graalvm(block: GraalVMPluginExtension.()->Unit) {
+fun Project.graalvm(block: GraalVMPluginExtension.() -> Unit) {
   configure(block)
 }
 
-class GraalVMPlugin: Plugin<Project> {
+class GraalVMPlugin : Plugin<Project> {
   private val osDetector = OsDetector()
   
   private val isWindows = osDetector.os == "windows"
   private val arch = osDetector.arch
   private var vcvarsall = ""
-  private var vcvarsall_arch = when(arch) {
-    "x86"    -> "x86"
+  private var vcvarsall_arch = when (arch) {
+    "x86" -> "x86"
     "x86_64" -> "x64"
-    else     -> ""
+    else -> ""
   }
   
   internal lateinit var config: GraalVMPluginExtension
@@ -52,7 +52,7 @@ class GraalVMPlugin: Plugin<Project> {
 //      val jar = tasks.getByName<Jar>("jar")
       
       val dstDir = project.buildDir.toPath().resolve(GRAALVM_NAME).toFile()
-      val exeName = if(config.executableName.isNotBlank()) config.executableName.trim()
+      val exeName = if (config.executableName.isNotBlank()) config.executableName.trim()
       else "${project.name}-${project.version}-${osDetector.classifier}"
       
       val nativeImage by tasks.registering {
@@ -67,7 +67,7 @@ class GraalVMPlugin: Plugin<Project> {
           dstDir.mkdirs()
           val graalvmBin = Paths.get(config.graalvmHome, "bin", "native-image").toAbsolutePath().toString()
           val cmd = buildString {
-            if(isWindows)
+            if (isWindows)
               append("\"$vcvarsall\" $vcvarsall_arch && ")
             append("\"$graalvmBin\" ")
             append("-cp ")
@@ -91,7 +91,7 @@ class GraalVMPlugin: Plugin<Project> {
         group = GRAALVM_NAME
         description = "zip compress native image"
         dependsOn(nativeImage)
-        val fileExt = if(isWindows) ".exe" else ""
+        val fileExt = if (isWindows) ".exe" else ""
         val fileName = "$exeName$fileExt"
         archiveFileName.set("$exeName.zip")
         destinationDirectory.set(file("$buildDir/dist"))
@@ -102,23 +102,26 @@ class GraalVMPlugin: Plugin<Project> {
   }
   
   private fun checkGraalVM() {
+    println("check graalvm")
     val graalvmHome = File(config.graalvmHome)
     check(graalvmHome.exists()) { "graalvm is missing" }
     val guPath = Paths.get(config.graalvmHome, "bin", "gu").toString()
     exec("\"$guPath\" install native-image")
     check(config.mainClassName.isNotBlank()) { "mainClassName is blank" }
+    println("finish check graalvm")
   }
   
   private fun checkMSVC() {
-    if(isWindows) {
+    println("check msvc")
+    if (isWindows) {
       val cacheDir = Paths.get(System.getProperty("user.home"), ".graalvm", "cache")
-        .toAbsolutePath().toFile()
+          .toAbsolutePath().toFile()
       cacheDir.mkdirs()
       
       val vswhere = downloadIfNotExists(
-        cacheDir,
-        "vswhere.exe",
-        "https://github.com/microsoft/vswhere/releases/download/2.8.4/vswhere.exe"
+          cacheDir,
+          "vswhere.exe",
+          "https://github.com/microsoft/vswhere/releases/download/2.8.4/vswhere.exe"
       ).toString()
       val version = eval("\"$vswhere\" -latest -property installationVersion").trim()
       check(version.isNotBlank()) { "msvc is missing" }
@@ -129,19 +132,19 @@ class GraalVMPlugin: Plugin<Project> {
   }
   
   private fun downloadIfNotExists(
-    dstDir: File, exePath: String, url: String,
-    unzip: Boolean = false
+      dstDir: File, exePath: String, url: String,
+      unzip: Boolean = false
   ): File {
     val exe = dstDir.resolve(exePath)
-    if(!exe.exists()) {
+    if (!exe.exists()) {
       val tmp = dstDir.resolve("$exePath.tmp")
       val conn = URL(url)
-      conn.openStream().use { input->
-        FileOutputStream(tmp).use { output->
+      conn.openStream().use { input ->
+        FileOutputStream(tmp).use { output ->
           input.transferTo(output)
         }
       }
-      if(unzip) {
+      if (unzip) {
         ZipFile(tmp).extractFile(exePath, dstDir.toString())
         tmp.delete()
       } else
@@ -153,7 +156,7 @@ class GraalVMPlugin: Plugin<Project> {
   
   fun exec(cmd: String, workDir: File? = null) {
     val dir = workDir ?: File(".")
-    if(isWindows)
+    if (isWindows)
       exec(dir, "cmd", "/c", "call $cmd")
     else
       exec(dir, "/bin/bash", "-c", cmd)
@@ -161,7 +164,7 @@ class GraalVMPlugin: Plugin<Project> {
   
   fun eval(cmd: String, workDir: File? = null): String {
     val dir = workDir ?: File(".")
-    return if(isWindows)
+    return if (isWindows)
       call(dir, "cmd", "/c", "call $cmd")
     else
       call(dir, "/bin/bash", "-c", cmd)
@@ -174,7 +177,10 @@ class GraalVMPlugin: Plugin<Project> {
     val process: Process = builder.start()
     val reader = BufferedReader(InputStreamReader(process.inputStream))
     reader.use {
-      return it.readText()
+      return it.readText().apply {
+        process.waitFor()
+        check(process.exitValue() == 0) { "error exec $command" }
+      }
     }
   }
   
@@ -187,6 +193,7 @@ class GraalVMPlugin: Plugin<Project> {
     input.use {
       it.transferTo(System.out)
     }
+    process.waitFor()
     check(process.exitValue() == 0) { "error exec $command" }
   }
 }
