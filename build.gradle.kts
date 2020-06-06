@@ -6,12 +6,12 @@ plugins {
 }
 
 group = "com.github.wumo"
-version = "0.0.1"
+version = "0.0.2"
 
 pluginBundle {
   website = "https://github.com/wumo/gradle-graalvm-plugin"
   vcsUrl = "https://github.com/wumo/gradle-graalvm-plugin.git"
-  tags = listOf("graalvm","native-image", "kotlin")
+  tags = listOf("graalvm", "native-image", "kotlin")
 }
 
 gradlePlugin {
@@ -26,12 +26,13 @@ gradlePlugin {
 }
 
 repositories {
-  mavenCentral()
+  jcenter()
 }
 
 dependencies {
   implementation("net.lingala.zip4j:zip4j:2.6.0")
   implementation("com.google.gradle:osdetector-gradle-plugin:1.6.2")
+  implementation("com.github.jengelman.gradle.plugins:shadow:5.2.0")
   
   testImplementation("junit:junit:4.13")
   testImplementation(kotlin("test-junit"))

@@ -1,5 +1,6 @@
 package com.github.wumo.graalvm
 
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import com.google.gradle.osdetector.OsDetector
 import net.lingala.zip4j.ZipFile
 import org.gradle.api.Plugin
@@ -16,7 +17,12 @@ import java.nio.file.Paths
 
 internal const val GRAALVM_NAME = "graalvm"
 
-internal lateinit var config: GraalVMPluginExtension
+open class GraalVMPluginExtension {
+  var graalvmHome: String = System.getProperty("java.home")
+  var mainClassName: String = ""
+  var executableName: String = ""
+  var arguments: List<String> = mutableListOf()
+}
 
 fun Project.graalvm(block: GraalVMPluginExtension.()->Unit) {
   configure(block)
@@ -34,11 +40,15 @@ class GraalVMPlugin: Plugin<Project> {
     else     -> ""
   }
   
+  internal lateinit var config: GraalVMPluginExtension
+  
   override fun apply(project: Project): Unit = project.run {
+    apply(plugin = "com.github.johnrengelman.shadow")
     config = extensions.create(GRAALVM_NAME)
     
     afterEvaluate {
-      val jar = tasks.getByName<Jar>("jar")
+      val jar = tasks.getByName<ShadowJar>("shadowJar")
+//      val jar = tasks.getByName<Jar>("jar")
       
       val nativeImage by tasks.registering {
         group = GRAALVM_NAME
@@ -57,7 +67,8 @@ class GraalVMPlugin: Plugin<Project> {
               append("\"$vcvarsall\" $vcvarsall_arch && ")
             append("\"$graalvmBin\" ")
             append("-cp ")
-            val paths = project.configurations.getByName("runtimeClasspath").files.toMutableList()
+//            val paths = project.configurations.getByName("runtimeClasspath").files.toMutableList()
+            val paths = mutableListOf<File>()
             paths.add(jar.outputs.files.singleFile)
             append("\"").append(paths.joinToString(File.pathSeparator) { it.absolutePath }).append("\" ")
             append("-H:Path=").append("\"${dstDir.absolutePath}\" ")
