@@ -14,6 +14,14 @@ plugins {
 }
 
 graalvm {
+  graalvmHome = System.getenv("GRAALVM_HOME")
+    mainClassName = "com.github.wumo.MainKt"
+    arguments = listOf(
+      "--no-fallback",
+      "--enable-all-security-services",
+      "--report-unsupported-elements-at-runtime",
+      "--allow-incomplete-classpath"
+    )
 }
 ```
 
