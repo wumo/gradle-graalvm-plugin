@@ -5,6 +5,7 @@ import com.google.gradle.osdetector.OsDetector
 import net.lingala.zip4j.ZipFile
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.tasks.bundling.Zip
 import org.gradle.jvm.tasks.Jar
 import org.gradle.kotlin.dsl.*
 import java.io.BufferedReader
@@ -50,6 +51,10 @@ class GraalVMPlugin: Plugin<Project> {
       val jar = tasks.getByName<ShadowJar>("shadowJar")
 //      val jar = tasks.getByName<Jar>("jar")
       
+      val dstDir = project.buildDir.toPath().resolve(GRAALVM_NAME).toFile()
+      val exeName = if(config.executableName.isNotBlank()) config.executableName.trim()
+      else "${project.name}-${project.version}-${osDetector.classifier}"
+      
       val nativeImage by tasks.registering {
         group = GRAALVM_NAME
         description = "Generate native image"
@@ -59,7 +64,6 @@ class GraalVMPlugin: Plugin<Project> {
           checkGraalVM()
           checkMSVC()
           
-          val dstDir = project.buildDir.toPath().resolve(GRAALVM_NAME).toFile()
           dstDir.mkdirs()
           val graalvmBin = Paths.get(config.graalvmHome, "bin", "native-image").toAbsolutePath().toString()
           val cmd = buildString {
@@ -72,9 +76,6 @@ class GraalVMPlugin: Plugin<Project> {
             paths.add(jar.outputs.files.singleFile)
             append("\"").append(paths.joinToString(File.pathSeparator) { it.absolutePath }).append("\" ")
             append("-H:Path=").append("\"${dstDir.absolutePath}\" ")
-            val exeName =
-              if(config.executableName.isNotBlank()) config.executableName.trim()
-              else "${project.name}-${project.version}-${osDetector.classifier}"
             append("-H:Name=$exeName ")
             config.arguments.forEach {
               append(it.trim()).append(" ")
@@ -84,6 +85,18 @@ class GraalVMPlugin: Plugin<Project> {
           println(cmd)
           exec(cmd)
         }
+      }
+      
+      tasks.register<Zip>("nativeImageZip") {
+        group = GRAALVM_NAME
+        description = "zip compress native image"
+        dependsOn(nativeImage)
+        val fileExt = if(isWindows) ".exe" else ""
+        val fileName = "$exeName$fileExt"
+        archiveFileName.set("$exeName.zip")
+        destinationDirectory.set(file("$buildDir/dist"))
+        
+        from(dstDir.resolve(fileName))
       }
     }
   }

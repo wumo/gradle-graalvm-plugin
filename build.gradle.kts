@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.github.wumo"
-version = "0.0.3"
+version = "0.0.4"
 
 pluginBundle {
   website = "https://github.com/wumo/gradle-graalvm-plugin"
