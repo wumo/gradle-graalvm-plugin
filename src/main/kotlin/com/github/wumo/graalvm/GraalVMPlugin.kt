@@ -1,12 +1,11 @@
 package com.github.wumo.graalvm
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import com.google.gradle.osdetector.OsDetector
 import net.lingala.zip4j.ZipFile
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.bundling.Zip
-import org.gradle.jvm.tasks.Jar
+import org.gradle.internal.jvm.Jvm
 import org.gradle.kotlin.dsl.*
 import java.io.BufferedReader
 import java.io.File
@@ -19,7 +18,7 @@ import java.nio.file.Paths
 internal const val GRAALVM_NAME = "graalvm"
 
 open class GraalVMPluginExtension {
-  var graalvmHome: String = System.getProperty("java.home")
+  var graalvmHome: String? = null
   var mainClassName: String = ""
   var executableName: String = ""
   var arguments: List<String> = mutableListOf()
@@ -30,41 +29,39 @@ fun Project.graalvm(block: GraalVMPluginExtension.() -> Unit) {
 }
 
 class GraalVMPlugin : Plugin<Project> {
-  private val osDetector = OsDetector()
-  
-  private val isWindows = osDetector.os == "windows"
-  private val arch = osDetector.arch
+  private val isWindows = OsDetector.os == "windows"
+  private val arch = OsDetector.arch
   private var vcvarsall = ""
   private var vcvarsall_arch = when (arch) {
     "x86" -> "x86"
     "x86_64" -> "x64"
     else -> ""
   }
-  
-  internal lateinit var config: GraalVMPluginExtension
-  
+
+  private lateinit var config: GraalVMPluginExtension
+
   override fun apply(project: Project): Unit = project.run {
     apply(plugin = "com.github.johnrengelman.shadow")
     config = extensions.create(GRAALVM_NAME)
-    
+
     afterEvaluate {
       val jar = tasks.getByName<ShadowJar>("shadowJar")
-//      val jar = tasks.getByName<Jar>("jar")
-      
       val dstDir = project.buildDir.toPath().resolve(GRAALVM_NAME).toFile()
       val exeName = if (config.executableName.isNotBlank()) config.executableName.trim()
-      else "${project.name}-${project.version}-${osDetector.classifier}"
-      
+      else "${project.name}-${project.version}-${OsDetector.classifier}"
+      config.graalvmHome = config.graalvmHome ?: Jvm.current().javaHome.absolutePath
+
       val nativeImage by tasks.registering {
         group = GRAALVM_NAME
         description = "Generate native image"
         dependsOn(jar)
-        
+
         doLast {
           checkGraalVM()
           checkMSVC()
-          
+
           dstDir.mkdirs()
+
           val graalvmBin = Paths.get(config.graalvmHome, "bin", "native-image").toAbsolutePath().toString()
           val cmd = buildString {
             if (isWindows)
@@ -86,7 +83,7 @@ class GraalVMPlugin : Plugin<Project> {
           exec(cmd)
         }
       }
-      
+
       tasks.register<Zip>("nativeImageZip") {
         group = GRAALVM_NAME
         description = "zip compress native image"
@@ -95,12 +92,12 @@ class GraalVMPlugin : Plugin<Project> {
         val fileName = "$exeName$fileExt"
         archiveFileName.set("$exeName.zip")
         destinationDirectory.set(file("$buildDir/dist"))
-        
+
         from(dstDir.resolve(fileName))
       }
     }
   }
-  
+
   private fun checkGraalVM() {
     val graalvmHome = File(config.graalvmHome)
     check(graalvmHome.exists()) { "graalvm is missing" }
@@ -108,17 +105,17 @@ class GraalVMPlugin : Plugin<Project> {
     exec("\"$guPath\" install native-image")
     check(config.mainClassName.isNotBlank()) { "mainClassName is blank" }
   }
-  
+
   private fun checkMSVC() {
     if (isWindows) {
       val cacheDir = Paths.get(System.getProperty("user.home"), ".graalvm", "cache")
-          .toAbsolutePath().toFile()
+        .toAbsolutePath().toFile()
       cacheDir.mkdirs()
-      
+
       val vswhere = downloadIfNotExists(
-          cacheDir,
-          "vswhere.exe",
-          "https://github.com/microsoft/vswhere/releases/download/2.8.4/vswhere.exe"
+        cacheDir,
+        "vswhere.exe",
+        "https://github.com/microsoft/vswhere/releases/download/2.8.4/vswhere.exe"
       ).toString()
       val version = eval("\"$vswhere\" -latest -property installationVersion").trim()
       check(version.isNotBlank()) { "msvc is missing" }
@@ -127,10 +124,10 @@ class GraalVMPlugin : Plugin<Project> {
       check(File(vcvarsall).exists()) { "vcvarsall.bat is missing!" }
     }
   }
-  
+
   private fun downloadIfNotExists(
-      dstDir: File, exePath: String, url: String,
-      unzip: Boolean = false
+    dstDir: File, exePath: String, url: String,
+    unzip: Boolean = false
   ): File {
     val exe = dstDir.resolve(exePath)
     if (!exe.exists()) {
@@ -150,7 +147,7 @@ class GraalVMPlugin : Plugin<Project> {
     }
     return exe
   }
-  
+
   fun exec(cmd: String, workDir: File? = null) {
     val dir = workDir ?: File(".")
     if (isWindows)
@@ -158,7 +155,7 @@ class GraalVMPlugin : Plugin<Project> {
     else
       exec(dir, "/bin/bash", "-c", cmd)
   }
-  
+
   fun eval(cmd: String, workDir: File? = null): String {
     val dir = workDir ?: File(".")
     return if (isWindows)
@@ -166,7 +163,7 @@ class GraalVMPlugin : Plugin<Project> {
     else
       call(dir, "/bin/bash", "-c", cmd)
   }
-  
+
   fun call(workDir: File, vararg command: String): String {
     val builder = ProcessBuilder(*command)
     builder.directory(workDir)
@@ -180,7 +177,7 @@ class GraalVMPlugin : Plugin<Project> {
       }
     }
   }
-  
+
   fun exec(workDir: File, vararg command: String) {
     val builder = ProcessBuilder(*command)
     builder.directory(workDir)
